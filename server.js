@@ -286,10 +286,11 @@ app.post('/api/auth/register', async (req, res) => {
 
 
 
-
+// Vercel-এর জন্য অ্যাপ অবজেক্ট এক্সপোর্ট করুন
+module.exports = app;
 
 
 // 6. সার্ভার স্টার্ট করা
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
-});
+// app.listen(port, () => {
+//     console.log(`Server is running at http://localhost:${port}`);
+// });
