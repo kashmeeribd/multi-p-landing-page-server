@@ -32,18 +32,33 @@ app.use(cors({
 }));
 
 
-// 3. MongoDB সংযোগ স্থাপন (সংশোধিত)
+
+
+
+// 3. MongoDB সংযোগ স্থাপন (Vercel/Serverless ফ্রেন্ডলি)
 const uri = process.env.MONGO_URI;
-if (!uri) {
-    console.error('FATAL ERROR: MONGO_URI is not defined in .env file.');
-}
-if (mongoose.connection.readyState === 0) { // <-- শুধুমাত্র একবার সংযোগের চেষ্টা
-    mongoose.connect(uri)
-        .then(() => console.log('MongoDB successfully connected'))
-        .catch(err => console.error('MongoDB connection error:', err.message));
+// ... (অন্যান্য কোড)
+
+if (mongoose.connection.readyState === 0) {
+    mongoose.connect(uri, {
+        // Vercel ফাংশনগুলি দ্রুত চালু এবং বন্ধ হয়, তাই দ্রুত সংযোগ চাই
+        serverSelectionTimeoutMS: 5000, // 10000ms থেকে 5000ms এ নামানো হলো
+        socketTimeoutMS: 45000,      // সকেটের সময় বাড়ানো হলো
+        // (যদি Mongoose v6 এর নিচে ব্যবহার করেন তবে নিচের দুটি লাইন প্রয়োজন)
+        // useNewUrlParser: true, 
+        // useUnifiedTopology: true 
+    })
+    .then(() => console.log('MongoDB successfully connected'))
+    .catch(err => console.error('MongoDB connection error:', err.message));
 } else {
     console.log('MongoDB is already connected.');
 }
+
+
+
+
+
+
 
 // 4. Define the Schema (Order Model)
 // এখানে Order Model-টি সংজ্ঞায়িত করা হয়েছে, তাই আর require('../models/Order') দরকার নেই
