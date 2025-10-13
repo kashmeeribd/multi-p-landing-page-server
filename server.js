@@ -88,6 +88,18 @@ const Order = mongoose.model('Order', orderSchema);
 // 5. API রুট তৈরি করা
 // ===============================================/
 
+// ✅ রুট পাথ (`/`) হ্যান্ডেল করার জন্য একটি রুট যুক্ত করুন (Vercel Test করার জন্য)
+app.get('/', (req, res) => {
+    res.status(200).json({ 
+        message: 'Kashmeeri API is running successfully!', 
+        version: '1.0',
+        availableRoutes: ['/api/orders', '/api/auth/login']
+    });
+});
+
+
+
+
 // POST Route: নতুন অর্ডার তৈরি
 app.post('/api/orders', async (req, res) => {
     try {
