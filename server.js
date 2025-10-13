@@ -13,12 +13,12 @@ const jwt = require('jsonwebtoken');
 dotenv.config();
 
 // 2. অ্যাপ তৈরি এবং গ্লোবাল মিডলওয়্যার ব্যবহার করা
-const app = express(); 
+const app = express();
 
 const User = require('./models/user'); // User মডেল ইমপোর্ট করা
 
 // Access PORT from .env file (defaults to 3000 if not set)
-const port = process.env.PORT || 3000;
+// const port = process.env.PORT || 3000;
 
 
 // মিডলওয়্যার
@@ -26,24 +26,24 @@ app.use(express.json()); // To parse incoming JSON data from request body
 
 // CORS কনফিগারেশন
 app.use(cors({
-    origin: '*', 
+    origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
 }));
 
 
-// 3. MongoDB সংযোগ স্থাপন
+// 3. MongoDB সংযোগ স্থাপন (সংশোধিত)
 const uri = process.env.MONGO_URI;
-
 if (!uri) {
     console.error('FATAL ERROR: MONGO_URI is not defined in .env file.');
-    // process.exit(1);
 }
-
-mongoose.connect(uri)
-    .then(() => console.log('MongoDB successfully connected'))
-    .catch(err => console.error('MongoDB connection error:', err.message));
-
+if (mongoose.connection.readyState === 0) { // <-- শুধুমাত্র একবার সংযোগের চেষ্টা
+    mongoose.connect(uri)
+        .then(() => console.log('MongoDB successfully connected'))
+        .catch(err => console.error('MongoDB connection error:', err.message));
+} else {
+    console.log('MongoDB is already connected.');
+}
 
 // 4. Define the Schema (Order Model)
 // এখানে Order Model-টি সংজ্ঞায়িত করা হয়েছে, তাই আর require('../models/Order') দরকার নেই
@@ -61,8 +61,8 @@ const orderSchema = new mongoose.Schema({
         color: String,
         quantity: Number
     }],
-    shippingInfo: { 
-        type: { type: String }, 
+    shippingInfo: {
+        type: { type: String },
         cost: String
     },
     summary: {
@@ -92,14 +92,14 @@ const Order = mongoose.model('Order', orderSchema);
 app.post('/api/orders', async (req, res) => {
     try {
         const orderData = req.body;
-        
+
         if (!orderData.billingDetails || orderData.orderedProducts.length === 0) {
             return res.status(400).json({ message: 'Invalid order data: Missing billing details or products.' });
         }
 
         const newOrder = new Order(orderData);
         await newOrder.save();
-        
+
         console.log('Order successfully saved to DB:', newOrder._id);
         res.status(201).json({ message: 'Order placed successfully!', orderId: newOrder._id });
     } catch (error) {
@@ -112,26 +112,26 @@ app.post('/api/orders', async (req, res) => {
 // GET Route: সমস্ত অর্ডার আনা (ডেট ফিল্টার সহ)
 app.get('/api/orders/all', async (req, res) => {
     try {
-        const { startDate, endDate } = req.query; 
+        const { startDate, endDate } = req.query;
         let filter = {};
 
         if (startDate || endDate) {
             filter.orderDate = {};
-            
+
             if (startDate) {
-                filter.orderDate.$gte = new Date(startDate); 
+                filter.orderDate.$gte = new Date(startDate);
             }
             if (endDate) {
                 const endOfDay = new Date(endDate);
                 endOfDay.setDate(endOfDay.getDate() + 1); // পরের দিনের শুরুতে যেতে
-                filter.orderDate.$lt = endOfDay; 
+                filter.orderDate.$lt = endOfDay;
             }
         }
-        
+
         const orders = await Order.find(filter).sort({ orderDate: -1 });
-        
-        res.status(200).json(orders); 
-        
+
+        res.status(200).json(orders);
+
     } catch (error) {
         console.error('Error fetching orders:', error);
         res.status(500).json({ message: 'Failed to retrieve orders', error: error.message });
@@ -143,14 +143,14 @@ app.get('/api/orders/all', async (req, res) => {
 // এই রুটটি 404 এরর ঠিক করবে।
 app.put('/api/orders/:id', async (req, res) => {
     try {
-        const orderId = req.params.id; 
-        const updatedData = req.body;   
+        const orderId = req.params.id;
+        const updatedData = req.body;
 
         const updatedOrder = await Order.findByIdAndUpdate(
             orderId,
             { $set: updatedData }, // ফ্রন্টএন্ড থেকে আসা সমস্ত ডেটা দিয়ে আপডেট করা
-            { 
-                new: true, 
+            {
+                new: true,
                 runValidators: true
             }
         );
@@ -159,9 +159,9 @@ app.put('/api/orders/:id', async (req, res) => {
             return res.status(404).json({ message: 'Order not found' });
         }
 
-        res.status(200).json({ 
-            message: 'Order updated successfully', 
-            order: updatedOrder 
+        res.status(200).json({
+            message: 'Order updated successfully',
+            order: updatedOrder
         });
 
     } catch (error) {
@@ -175,12 +175,12 @@ app.put('/api/orders/:id', async (req, res) => {
 app.patch('/api/orders/:orderId/status', async (req, res) => {
     try {
         const orderId = req.params.orderId;
-        const { newStatus } = req.body; 
+        const { newStatus } = req.body;
 
         if (!newStatus) {
             return res.status(400).json({ message: 'New status is required.' });
         }
-        
+
         const updatedOrder = await Order.findByIdAndUpdate(
             orderId,
             { status: newStatus },
@@ -191,9 +191,9 @@ app.patch('/api/orders/:orderId/status', async (req, res) => {
             return res.status(404).json({ message: 'Order not found.' });
         }
 
-        res.status(200).json({ 
-            message: 'Order status updated successfully!', 
-            order: updatedOrder 
+        res.status(200).json({
+            message: 'Order status updated successfully!',
+            order: updatedOrder
         });
     } catch (error) {
         console.error('Error updating order status:', error);
@@ -206,7 +206,7 @@ app.patch('/api/orders/:orderId/status', async (req, res) => {
 app.delete('/api/orders/:orderId', async (req, res) => {
     try {
         const orderId = req.params.orderId;
-        
+
         const deletedOrder = await Order.findByIdAndDelete(orderId);
 
         if (!deletedOrder) {
@@ -239,14 +239,14 @@ app.post('/api/auth/login', async (req, res) => {
         // 🚨 টোকেনে 'role' ডেটা যুক্ত করা 🚨
         const token = jwt.sign(
             { id: user._id, role: user.role }, // <-- role এখানে যুক্ত করা হলো
-            process.env.JWT_SECRET || 'YOUR_SECRET_KEY', 
+            process.env.JWT_SECRET || 'YOUR_SECRET_KEY',
             { expiresIn: '1d' }
         );
 
         // 4. টোকেন সহ রেসপন্স পাঠানো
-        res.status(200).json({ 
-            status: 'success', 
-            token, 
+        res.status(200).json({
+            status: 'success',
+            token,
             user: { id: user._id, email: user.email, name: user.name, role: user.role } // রোলটি সরাসরিও পাঠানো যেতে পারে
         });
 
@@ -260,19 +260,19 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { name, email, password } = req.body; 
-        
+        const { name, email, password } = req.body;
+
         if (!name || !email || !password) {
-             return res.status(400).json({ message: 'Name, Email, and password are required.' });
+            return res.status(400).json({ message: 'Name, Email, and password are required.' });
         }
-        
+
         // 🚨 ইউজার তৈরি করার সময় 'role' ফিল্ডটি omit করা হয়েছে, যাতে এটি ডিফল্ট 'user' হয়। 🚨
-        const newUser = await User.create({ name, email, password }); 
-        
+        const newUser = await User.create({ name, email, password });
+
         // Response এ Role দেখানো
-        res.status(201).json({ 
-            message: 'User registered successfully! Now you can login.', 
-            user: newUser.email, 
+        res.status(201).json({
+            message: 'User registered successfully! Now you can login.',
+            user: newUser.email,
             name: newUser.name,
             role: newUser.role // 'user' রোলটি পাঠানো হবে
         });
