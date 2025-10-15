@@ -30,7 +30,7 @@ app.use(cors({
 // ===============================================
 
 // Vercel-এর জন্য সংযোগ স্ট্রিং
-const MONGODB_URI = process.env.MONGODB_URI; 
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // গ্লোবাল ভেরিয়েবল যা সংযোগ ক্লায়েন্টকে ধরে রাখবে
 let cached = global.mongoose;
