@@ -48,8 +48,8 @@ if (mongoose.connection.readyState === 0) {
         // useNewUrlParser: true, 
         // useUnifiedTopology: true 
     })
-    .then(() => console.log('MongoDB successfully connected'))
-    .catch(err => console.error('MongoDB connection error:', err.message));
+        .then(() => console.log('MongoDB successfully connected'))
+        .catch(err => console.error('MongoDB connection error:', err.message));
 } else {
     console.log('MongoDB is already connected.');
 }
@@ -63,38 +63,61 @@ if (mongoose.connection.readyState === 0) {
 // 4. Define the Schema (Order Model)
 // এখানে Order Model-টি সংজ্ঞায়িত করা হয়েছে, তাই আর require('../models/Order') দরকার নেই
 const orderSchema = new mongoose.Schema({
+    // 1. বিলিং তথ্য
     billingDetails: {
-        name: String,
-        phone: String,
-        address: String
+        name: { type: String, required: true },
+        phone: { type: String, required: true },
+        address: { type: String, required: true }
     },
+
+    // 2. অর্ডার করা পণ্যের তালিকা
     orderedProducts: [{
+        category: { type: String, required: true }, // ✅ নতুন: ক্যাটাগরি (যেমন: Panjabi)
         image: String,
-        name: String,
-        price: String,
-        size: String,
-        color: String,
-        quantity: Number
+        name: { type: String, required: true },
+        price: { type: Number, required: true },
+        size: { type: String, required: true },
+        color: { type: String, required: true },
+        quantity: { type: Number, default: 1 }
     }],
+
+    // 3. শিপিং তথ্য
     shippingInfo: {
-        type: { type: String },
-        cost: String
+        type: {
+            type: String,
+            enum: ['Inside Dhaka', 'Outside Dhaka'],
+            required: true
+        },
+        cost: { type: Number, required: true }
     },
+
+    // 4. মূল্যের সারাংশ (Summary)
     summary: {
-        subtotal: String,
-        total: String,
-        paymentMethod: String
+        subtotal: { type: Number, required: true },
+        total: { type: Number, required: true },
+        paymentMethod: { type: String, default: 'Cash On Delivery' }
     },
+
+    // 5. অর্ডারের অবস্থা
     status: {
         type: String,
         enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
         default: 'Pending'
     },
+
+    // 6. অর্ডারের তারিখ
     orderDate: {
         type: Date,
         default: Date.now
     }
-});
+}, { timestamps: true }); // ✅ নতুন: কখন তৈরি হলো/আপডেট হলো, তা স্বয়ংক্রিয়ভাবে ট্র্যাক করবে
+
+
+
+
+
+
+module.exports = mongoose.model('Order', orderSchema);
 
 const Order = mongoose.model('Order', orderSchema);
 
@@ -105,8 +128,8 @@ const Order = mongoose.model('Order', orderSchema);
 
 // ✅ রুট পাথ (`/`) হ্যান্ডেল করার জন্য একটি রুট যুক্ত করুন (Vercel Test করার জন্য)
 app.get('/', (req, res) => {
-    res.status(200).json({ 
-        message: 'Kashmeeri API is running successfully!', 
+    res.status(200).json({
+        message: 'Kashmeeri API is running successfully!',
         version: '1.0',
         availableRoutes: ['/api/orders', '/api/auth/login']
     });
@@ -115,23 +138,49 @@ app.get('/', (req, res) => {
 
 
 
-// POST Route: নতুন অর্ডার তৈরি
+// POST Route: নতুন অর্ডার তৈরি 
 app.post('/api/orders', async (req, res) => {
     try {
         const orderData = req.body;
 
-        if (!orderData.billingDetails || orderData.orderedProducts.length === 0) {
-            return res.status(400).json({ message: 'Invalid order data: Missing billing details or products.' });
+        // প্রাথমিক ডেটা চেক (যথেষ্ট নয়, তবে দ্রুত ব্যর্থতার জন্য ভালো)
+        if (!orderData.billingDetails || !orderData.orderedProducts || orderData.orderedProducts.length === 0) {
+            return res.status(400).json({
+                message: 'Invalid order data: Missing billing details or products list.'
+            });
         }
 
+        // Mongoose Schema অনুযায়ী নতুন অর্ডার ইনস্ট্যান্স তৈরি
+        // এটিই Mongoose-এর সমস্ত ভ্যালিডেশন (required, enum, Number type) চেক করবে।
         const newOrder = new Order(orderData);
+
+        // ভ্যালিডেশন সফল হলে ডেটাবেসে সেভ করা হবে
         await newOrder.save();
 
-        console.log('Order successfully saved to DB:', newOrder._id);
-        res.status(201).json({ message: 'Order placed successfully!', orderId: newOrder._id });
+        console.log('Order successfully saved to DB. ID:', newOrder._id);
+        res.status(201).json({
+            message: 'Order placed successfully!',
+            orderId: newOrder._id,
+            status: newOrder.status // নিশ্চিত করার জন্য স্ট্যাটাস ফেরত দেওয়া হলো
+        });
+
     } catch (error) {
         console.error('Error saving order:', error);
-        res.status(500).json({ message: 'Failed to place order', error: error.message });
+
+        // Mongoose Validation Error হ্যান্ডেল করা
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(val => val.message);
+            return res.status(400).json({
+                message: 'Validation failed in order data.',
+                errors: messages
+            });
+        }
+
+        // অন্য কোনো সার্ভার এরর হ্যান্ডেল করা
+        res.status(500).json({
+            message: 'Failed to place order due to a server error.',
+            error: error.message
+        });
     }
 });
 
