@@ -12,11 +12,12 @@ dotenv.config();
 
 // 2. অ্যাপ তৈরি এবং গ্লোবাল মিডলওয়্যার ব্যবহার করা
 const app = express();
+
 // User মডেল ইমপোর্ট করা (ধরে নিলাম এটি ./models/user.js ফাইলে আছে)
-const User = require('./models/user'); 
+const User = require('./models/user');
 
 // মিডলওয়্যার
-app.use(express.json()); 
+app.use(express.json());
 
 // CORS কনফিগারেশন
 app.use(cors({
@@ -52,7 +53,7 @@ async function connectToDatabase() {
 
         const opts = {
             bufferCommands: false, // Vercel-এর জন্য দ্রুত সংযোগ
-            serverSelectionTimeoutMS: 5000, 
+            serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
             // useNewUrlParser: true, // Mongoose v6+ এ আর প্রয়োজন নেই
             // useUnifiedTopology: true 
@@ -66,7 +67,7 @@ async function connectToDatabase() {
             throw err;
         });
     }
-    
+
     cached.conn = await cached.promise;
     return cached.conn;
 }
@@ -82,7 +83,7 @@ const orderSchema = new mongoose.Schema({
     // ... (আপনার দেওয়া অর্ডার স্কিমার সম্পূর্ণ কোড) ...
     billingDetails: { name: { type: String, required: true }, phone: { type: String, required: true }, address: { type: String, required: true } },
     orderedProducts: [{
-        category: { type: String, required: true }, 
+        category: { type: String, required: true },
         image: String,
         name: { type: String, required: true },
         price: { type: Number, required: true },
@@ -95,7 +96,7 @@ const orderSchema = new mongoose.Schema({
         cost: { type: Number, required: true }
     },
     summary: {
-        subtotal: { type: Number, required: true }, 
+        subtotal: { type: Number, required: true },
         total: { type: Number, required: true },
         paymentMethod: { type: String, default: 'Cash On Delivery' }
     },
@@ -105,7 +106,7 @@ const orderSchema = new mongoose.Schema({
         default: 'Pending'
     },
     orderDate: { type: Date, default: Date.now }
-}, { timestamps: true }); 
+}, { timestamps: true });
 
 // Order Model একবার সংজ্ঞায়িত করা
 // .models.Order থাকলে তা ব্যবহার করবে, না থাকলে নতুন করে তৈরি করবে
@@ -123,9 +124,9 @@ const apiHandler = (handler) => async (req, res) => {
     } catch (error) {
         // Vercel-এ এরর হ্যান্ডেলিং এর জন্য
         console.error('API Handler Error:', error);
-        res.status(500).json({ 
-            message: 'Server connection or internal error.', 
-            error: error.message 
+        res.status(500).json({
+            message: 'Server connection or internal error.',
+            error: error.message
         });
     }
 };
@@ -144,7 +145,7 @@ app.get('/', apiHandler(async (req, res) => {
 // POST Route: নতুন অর্ডার তৈরি 
 app.post('/api/orders', apiHandler(async (req, res) => {
     const orderData = req.body;
-    
+
     if (!orderData.billingDetails || !orderData.orderedProducts || orderData.orderedProducts.length === 0) {
         return res.status(400).json({ message: 'Invalid order data: Missing billing details or products list.' });
     }
@@ -155,9 +156,11 @@ app.post('/api/orders', apiHandler(async (req, res) => {
 
         console.log('Order successfully saved to DB. ID:', newOrder._id);
         res.status(201).json({
-            message: 'Order placed successfully!',
+            message: "Order placed successfully!",
             orderId: newOrder._id,
-            status: newOrder.status 
+            status: newOrder.status,
+            // এটি যোগ করুন:
+            summary: newOrder.summary
         });
     } catch (error) {
         console.error('Error saving order:', error);
@@ -180,7 +183,7 @@ app.get('/api/orders/all', apiHandler(async (req, res) => {
         if (startDate) { filter.orderDate.$gte = new Date(startDate); }
         if (endDate) {
             const endOfDay = new Date(endDate);
-            endOfDay.setDate(endOfDay.getDate() + 1); 
+            endOfDay.setDate(endOfDay.getDate() + 1);
             filter.orderDate.$lt = endOfDay;
         }
     }
