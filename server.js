@@ -245,9 +245,66 @@ app.delete('/api/orders/:orderId', apiHandler(async (req, res) => {
 }));
 
 
-// (লগইন এবং রেজিস্ট্রেশন রুট - এখানে কোন পরিবর্তন করা হয়নি, যেহেতু User মডেল দেওয়া হয়নি)
-app.post('/api/auth/login', async (req, res) => { /* ... */ });
-app.post('/api/auth/register', async (req, res) => { /* ... */ });
+
+
+//  (লগইন রুট)
+
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        // ... validation checks ...
+
+        const user = await User.findOne({ email }).select('+password');
+
+        if (!user || !(await user.comparePassword(password))) {
+            return res.status(401).json({ message: 'Invalid credentials.' });
+        }
+
+        // 🚨 টোকেনে 'role' ডেটা যুক্ত করা 🚨
+        const token = jwt.sign(
+            { id: user._id, role: user.role }, // <-- role এখানে যুক্ত করা হলো
+            process.env.JWT_SECRET || 'YOUR_SECRET_KEY', 
+            { expiresIn: '1d' }
+        );
+
+        // 4. টোকেন সহ রেসপন্স পাঠানো
+        res.status(200).json({ 
+            status: 'success', 
+            token, 
+            user: { id: user._id, email: user.email, name: user.name, role: user.role } // রোলটি সরাসরিও পাঠানো যেতে পারে
+        });
+
+    } catch (error) {
+        // ... error handling
+    }
+});
+
+
+// (রেজিস্ট্রেশন রুট)
+
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { name, email, password } = req.body; 
+        
+        if (!name || !email || !password) {
+             return res.status(400).json({ message: 'Name, Email, and password are required.' });
+        }
+        
+        // 🚨 ইউজার তৈরি করার সময় 'role' ফিল্ডটি omit করা হয়েছে, যাতে এটি ডিফল্ট 'user' হয়। 🚨
+        const newUser = await User.create({ name, email, password }); 
+        
+        // Response এ Role দেখানো
+        res.status(201).json({ 
+            message: 'User registered successfully! Now you can login.', 
+            user: newUser.email, 
+            name: newUser.name,
+            role: newUser.role // 'user' রোলটি পাঠানো হবে
+        });
+    } catch (error) {
+        // ... error handling
+    }
+});
+
 
 
 // Vercel-এর জন্য অ্যাপ অবজেক্ট এক্সপোর্ট করুন
