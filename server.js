@@ -18,6 +18,9 @@ const User = require('./models/user');
 
 // মিডলওয়্যার
 app.use(express.json());
+app.use(cors());
+
+
 
 // CORS কনফিগারেশন
 app.use(cors({
@@ -25,6 +28,7 @@ app.use(cors({
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
 }));
+
 
 // ===============================================
 // 3. MongoDB সংযোগ স্থাপন এবং ক্লায়েন্ট ক্যাশিং
@@ -292,6 +296,7 @@ app.post('/api/auth/register', async (req, res) => {
         
         // 🚨 ইউজার তৈরি করার সময় 'role' ফিল্ডটি omit করা হয়েছে, যাতে এটি ডিফল্ট 'user' হয়। 🚨
         const newUser = await User.create({ name, email, password }); 
+        console.log('New user registered-----------------:', newUser);
         
         // Response এ Role দেখানো
         res.status(201).json({ 
