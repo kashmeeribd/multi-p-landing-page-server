@@ -116,6 +116,35 @@ const orderSchema = new mongoose.Schema({
 // .models.Order থাকলে তা ব্যবহার করবে, না থাকলে নতুন করে তৈরি করবে
 const Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
 
+
+
+// Auth Middleware (নিরাপত্তা ও অ্যাডমিন চেক নিশ্চিত করার জন্য)
+// ধরে নেওয়া হলো আপনার JWT_SECRET এনভায়রনমেন্ট ভেরিয়েবলে সেট করা আছে।
+const verifyAdminToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ message: 'Authorization token is required.' });
+    }
+    const token = authHeader.split(' ')[1];
+    
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'YOUR_SECRET_KEY');
+        // ⚠️ এই লাইনটি নিশ্চিত করবে যে শুধুমাত্র 'admin' রোলের ইউজাররাই আপডেট করতে পারবে।
+        if (decoded.role !== 'admin') { 
+            return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
+        }
+        req.user = decoded; 
+        next();
+    } catch (error) {
+        console.error("Token verification failed:", error.message);
+        return res.status(401).json({ message: 'Invalid or expired token.' });
+    }
+};
+
+
+
+
+
 // ===============================================
 // 5. API রুট তৈরি করা
 // ===============================================
@@ -197,64 +226,56 @@ app.get('/api/orders/all', apiHandler(async (req, res) => {
 }));
 
 
-// PUT Route: সম্পূর্ণ অর্ডার এডিট ও আপডেটের জন্য 
-app.put('/api/orders/:id', apiHandler(async (req, res) => {
+// ✅ PUT Route: সম্পূর্ণ অর্ডার এডিট ও আপডেটের জন্য
+app.put('/api/orders/:id', verifyAdminToken, apiHandler(async (req, res) => {
     const orderId = req.params.id;
     const updatedData = req.body;
 
     const updatedOrder = await Order.findByIdAndUpdate(
         orderId,
-        { $set: updatedData },
+        { $set: updatedData }, 
         { new: true, runValidators: true }
     );
 
     if (!updatedOrder) {
-        return res.status(404).json({ message: 'Order not found' });
+        return res.status(404).json({ message: 'Order not found.' });
     }
-    res.status(200).json({ message: 'Order updated successfully', order: updatedOrder });
+    res.status(200).json({ message: 'Order updated successfully!', order: updatedOrder });
 }));
 
 
-// PATCH Route: স্ট্যাটাস আপডেট
-app.patch('/api/orders/:orderId/status', apiHandler(async (req, res) => {
+// ✅ PATCH Route: স্ট্যাটাস আপডেট (ড্রপডাউনের জন্য)
+app.patch('/api/orders/:orderId/status', verifyAdminToken, apiHandler(async (req, res) => {
     const orderId = req.params.orderId;
-    const { newStatus } = req.body;
-    
-    // 💡 কনসোল ১: রিকোয়েস্ট ডেটা সঠিক আসছে কিনা দেখা
-    console.log(`[DEBUG] Attempting to update Order ID: ${orderId}`);
-    console.log(`[DEBUG] New Status Received: ${newStatus}`);
-    
-    if (!newStatus) {
-        // ... (400 এরর) ...
+    const { status } = req.body; // ফ্রন্টএন্ড থেকে শুধু `status` ফিল্ড আসবে
+
+    if (!status) {
+        return res.status(400).json({ message: 'Status field is required.' });
     }
-
-    // 💡 কনসোল ২: ডাটাবেজ কোয়েরি শুরু হওয়ার ঠিক আগে
-    console.log(`[DEBUG] Starting Mongoose update query...`);
-
+    
     try {
         const updatedOrder = await Order.findByIdAndUpdate(
             orderId,
-            { status: newStatus },
+            { status: status }, 
             { new: true, runValidators: true }
         );
 
-        // 💡 কনসোল ৩: ডাটাবেজ আপডেট সফল হয়েছে কিনা দেখা
-        if (updatedOrder) {
-            console.log(`[DEBUG] Mongoose Update SUCCESS. Order status is now: ${updatedOrder.status}`);
-        } else {
-            // এই ক্ষেত্রে সাধারণত 404 এরর হয়
-            console.warn(`[DEBUG] Mongoose Update FAILED: Order ID ${orderId} not found.`);
-            return res.status(404).json({ message: 'Order not found.' });
+        if (!updatedOrder) {
+            // আপনার পূর্বের লগ অনুযায়ী এই 404 error আসছিল। 
+            return res.status(404).json({ message: 'Order not found with the given ID.' });
         }
         
-        // 💡 কনসোল ৪: সফল রেসপন্স পাঠানোর ঠিক আগে
-        console.log(`[DEBUG] Sending 200 Success Response.`);
         res.status(200).json({ message: 'Order status updated successfully!', order: updatedOrder });
 
     } catch (dbError) {
-        // 💡 কনসোল ৫: Mongoose বা ডাটাবেজ এরর ধরা (সবচেয়ে গুরুত্বপূর্ণ)
+        // Mongoose CastError (ভুল ID ফরম্যাট) বা ValidationError (ভুল Status ভ্যালু) হ্যান্ডেল করা
+        if (dbError.name === 'ValidationError') {
+            return res.status(400).json({ message: dbError.message });
+        }
+        if (dbError.name === 'CastError') {
+             return res.status(400).json({ message: 'Invalid Order ID format.' });
+        }
         console.error(`[FATAL DB ERROR] Update failed for Order ID ${orderId}:`, dbError);
-        // একটি সুস্পষ্ট 500 এরর রেসপন্স পাঠান
         res.status(500).json({ message: 'Database update failed due to internal server error.' });
     }
 }));
