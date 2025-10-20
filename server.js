@@ -219,21 +219,44 @@ app.put('/api/orders/:id', apiHandler(async (req, res) => {
 app.patch('/api/orders/:orderId/status', apiHandler(async (req, res) => {
     const orderId = req.params.orderId;
     const { newStatus } = req.body;
-
+    
+    // 💡 কনসোল ১: রিকোয়েস্ট ডেটা সঠিক আসছে কিনা দেখা
+    console.log(`[DEBUG] Attempting to update Order ID: ${orderId}`);
+    console.log(`[DEBUG] New Status Received: ${newStatus}`);
+    
     if (!newStatus) {
-        return res.status(400).json({ message: 'New status is required.' });
+        // ... (400 এরর) ...
     }
 
-    const updatedOrder = await Order.findByIdAndUpdate(
-        orderId,
-        { status: newStatus },
-        { new: true, runValidators: true }
-    );
+    // 💡 কনসোল ২: ডাটাবেজ কোয়েরি শুরু হওয়ার ঠিক আগে
+    console.log(`[DEBUG] Starting Mongoose update query...`);
 
-    if (!updatedOrder) {
-        return res.status(404).json({ message: 'Order not found.' });
+    try {
+        const updatedOrder = await Order.findByIdAndUpdate(
+            orderId,
+            { status: newStatus },
+            { new: true, runValidators: true }
+        );
+
+        // 💡 কনসোল ৩: ডাটাবেজ আপডেট সফল হয়েছে কিনা দেখা
+        if (updatedOrder) {
+            console.log(`[DEBUG] Mongoose Update SUCCESS. Order status is now: ${updatedOrder.status}`);
+        } else {
+            // এই ক্ষেত্রে সাধারণত 404 এরর হয়
+            console.warn(`[DEBUG] Mongoose Update FAILED: Order ID ${orderId} not found.`);
+            return res.status(404).json({ message: 'Order not found.' });
+        }
+        
+        // 💡 কনসোল ৪: সফল রেসপন্স পাঠানোর ঠিক আগে
+        console.log(`[DEBUG] Sending 200 Success Response.`);
+        res.status(200).json({ message: 'Order status updated successfully!', order: updatedOrder });
+
+    } catch (dbError) {
+        // 💡 কনসোল ৫: Mongoose বা ডাটাবেজ এরর ধরা (সবচেয়ে গুরুত্বপূর্ণ)
+        console.error(`[FATAL DB ERROR] Update failed for Order ID ${orderId}:`, dbError);
+        // একটি সুস্পষ্ট 500 এরর রেসপন্স পাঠান
+        res.status(500).json({ message: 'Database update failed due to internal server error.' });
     }
-    res.status(200).json({ message: 'Order status updated successfully!', order: updatedOrder });
 }));
 
 
