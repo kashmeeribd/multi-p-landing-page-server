@@ -222,6 +222,7 @@ app.get('/api/orders/all', apiHandler(async (req, res) => {
     }
 
     const orders = await Order.find(filter).sort({ orderDate: -1 });
+    console.log(`Fetched ${orders.length} orders from DB.`);
     res.status(200).json(orders);
 }));
 
